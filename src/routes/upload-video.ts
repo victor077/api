@@ -3,7 +3,15 @@ import { prisma } from "../lib/prisma";
 import { fastifyMultipart } from "@fastify/multipart";
 import path from "node:path";
 import {randomUUID} from "crypto";
+import fs from "node:fs";
+import { pipeline } from "node:stream"; 
+import { promisify } from "node:util";
 
+
+// criamos essa const pois essa pipeline do node é um recurso antigo do node e ainda não tem a
+// feature de async await apenas de call back. Então incorporamos uma promisify do util para fazer com 
+// que fique async await
+const pump = promisify(pipeline)
 
 // Aqui iniciamos o metodo para baixar arquivos mp3, lembrando que fazer o uploado de video
 // para mp3 será no browser
@@ -43,6 +51,19 @@ export async function uploadVideo(app: FastifyInstance ) {
     //randomUUID gera um id aleatorio como no sq
     const fileUploadName = `${fileBaseName}-${randomUUID()}-${extension}`
 
-    const uploadPath = path.resolve(__dirname, "../../tmp",fileUploadName)
+    const uploadDestination = path.resolve(__dirname, "../../tmp",fileUploadName)
+
+      await pump(data.file, fs.createWriteStream(uploadDestination))
+
+
+      // fazendo a chamada da model de video e inserindo o upload de video
+      const video = await prisma.video.create({
+        data: {
+            name: data.filename,
+            path: uploadDestination
+        }
+      })
+
+      return {video};
 })
 }
